@@ -1,11 +1,11 @@
-from csv import writer
 import multiprocessing as mp
 import random
 import time
 
 NUM_WORKERS = 1
-NUM_WRITERS = 1
-TIMER = 5
+NUM_WRITERS = 5
+TIMER = 3
+MAXQSISE = 4
 
 def worker(name, q, done_q):
     while True:
@@ -51,7 +51,7 @@ def terminator(processes_list):
 
 def main():
     # Queue for requests
-    q = mp.JoinableQueue()
+    q = mp.JoinableQueue(maxsize=MAXQSISE)
     done_q = mp.JoinableQueue()
     den_q = mp.JoinableQueue()
     den_q.put(1)
@@ -62,45 +62,27 @@ def main():
     # Dict to store eriters objects
     writers = {}
 
-    # Populate task queue
-    for _ in range(10):
-        task = random.uniform(0.05, 0.15)
-        print("Putting: ", task)
-        q.put(task)
-
     for i in range(NUM_WRITERS):
-        writers[i] = mp.Process(target=write, args=(f"writer_{i}", q, done_q, ))
+        writers[i] = mp.Process(target=write, args=(f"writer_{i}", q, den_q, ))
 
     for i in range(NUM_WORKERS):
         global worker
         workers[i] = mp.Process(target=worker, args=(f"worker_{i}", q, done_q, ))
 
+    # Queues for succsess and unseccsessful tasks
     count_suc = mp.Process(target=count_q, args=("Succsess", done_q, ))
     count_den = mp.Process(target=count_q, args=("Denied", den_q, ))
 
 
     starter([writers, workers])
 
-    """
-    for i in range(NUM_WRITERS):
-        writers[i].start()
-
-    for i in range(NUM_WORKERS):
-        workers[i].start()
-    """
-    q.join()
-
-    terminator([writers, workers])
-    """
-    for i in range(NUM_WORKERS):
-        workers[i].terminate()
+    #q.join()
+    while True:
+        if time.monotonic() > TIMER:
+            terminator([writers, workers])
+            print("BREAKING")
+            break
     
-    for i in range(NUM_WRITERS):
-        writers[i].terminate()
-    
-    if time.monotonic > TIMER:
-    """
-
     count_den.start()
     den_q.join()
     count_den.terminate()
@@ -109,10 +91,7 @@ def main():
     count_suc.start()
     done_q.join()
     count_suc.terminate()
-
-
-
-
+    terminator([writers, workers])
 
 
 if __name__ == "__main__":

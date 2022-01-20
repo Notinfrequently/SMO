@@ -2,10 +2,14 @@ import multiprocessing as mp
 import random
 import time
 
-NUM_WORKERS = 1
-NUM_WRITERS = 5
+NUM_WORKERS = 5
+NUM_WRITERS = 2
 TIMER = 3
-MAXQSISE = 4
+MAXQSISE = 10
+WRITE_INTERVAL = 0.2
+WRITER_FUNC_VALUES = [0.05, 0.15]
+WRITER_FUNC = random.uniform
+
 
 def worker(name, q, done_q):
     while True:
@@ -20,8 +24,8 @@ def worker(name, q, done_q):
 
 def write(name, q, den_q):
     while True:
-        task = random.uniform(0.05, 0.15)
-        time.sleep(0.2)
+        task = WRITER_FUNC(*WRITER_FUNC_VALUES)
+        time.sleep(WRITE_INTERVAL)
         if q.full():
             print("Queue is full.")
             den_q.put_nowait(task)

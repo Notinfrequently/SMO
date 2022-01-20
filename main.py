@@ -2,14 +2,14 @@ import multiprocessing as mp
 import random
 import time
 
-NUM_WORKERS = 5
-NUM_WRITERS = 2
+NUM_WORKERS = 2
+NUM_WRITERS = 10
 TIMER = 3
 MAXQSISE = 10
 WRITE_INTERVAL = 0.2
 WRITER_FUNC_VALUES = [0.05, 0.15]
 WRITER_FUNC = random.uniform
-
+LOG_ENABLED = False
 
 def worker(name, q, done_q):
     """Queue processing unit.
@@ -18,11 +18,11 @@ def worker(name, q, done_q):
     while True:
         if not q.empty():
             task = q.get()
-            print(f"{name} get: {task}")
+            if LOG_ENABLED:
+                print(f"{name} get: {task}")
             time.sleep(task)
             done_q.put_nowait(task)
             q.task_done()
-            print("Done")
 
 
 def write(name, q, den_q):
@@ -38,10 +38,12 @@ def write(name, q, den_q):
         task = WRITER_FUNC(*WRITER_FUNC_VALUES)
         time.sleep(WRITE_INTERVAL)
         if q.full():
-            print("Queue is full.")
+            if LOG_ENABLED:
+                print("Queue is full.")
             den_q.put_nowait(task)
         else:
-            print(f"{name} putting in queue.")
+            if LOG_ENABLED:
+                print(f"{name} putting in queue.")
             q.put(task)
 
 
@@ -53,7 +55,7 @@ def count_q(name, q):
     while not q.empty():
         q.get()
         count += 1
-        q.task_done()
+        q.task_done()   
     print(f"In {name} queue where: {count}")
 
 def get_task_count(queue, process):
@@ -87,7 +89,8 @@ def main():
     # Queue for denied tasks 
     # task is denied if main queue is full
     den_q = mp.JoinableQueue()
-    # little hack to count denied tasks queue
+
+    # Little hack to count denied tasks queue
     # for some reasons on MacOS it wont let it count itself
     # if queue is empty
     den_q.put(1)
@@ -114,14 +117,14 @@ def main():
     # start processes
     starter([writers, workers])
 
-    #q.join()
     # Terminate tasks at the end of timer
     # monotonic timer count time from begining of a program
     # in sec
     while True:
         if time.monotonic() > TIMER:
             terminator([writers, workers])
-            print("BREAKING")
+            if LOG_ENABLED:
+                print("BREAKING")
             break
     
 
@@ -134,5 +137,5 @@ def main():
 if __name__ == "__main__":
     start = time.time()
     main()
-    end = time.time() - start
-    print(end)
+    print("Total work time: ", time.time() - start)
+    

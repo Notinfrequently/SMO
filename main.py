@@ -12,6 +12,9 @@ WRITER_FUNC = random.uniform
 
 
 def worker(name, q, done_q):
+    """Queue processing unit.
+    Will take task from queue and work on it.
+    """
     while True:
         if not q.empty():
             task = q.get()
@@ -23,6 +26,14 @@ def worker(name, q, done_q):
 
 
 def write(name, q, den_q):
+    """Process to write to a queue.
+    Tweak it by changing parameters at the top of a program
+    `WRITER_FUNC` - function to use to get time that
+    worker processes will be "working" on a task
+
+    `WRITE_INTERVAL` - determine how long process will "work" on a task
+    `WRITER_FUNC_VALUES` - values to pass to a function,
+    change them according to a function signature"""
     while True:
         task = WRITER_FUNC(*WRITER_FUNC_VALUES)
         time.sleep(WRITE_INTERVAL)
@@ -35,6 +46,9 @@ def write(name, q, den_q):
 
 
 def count_q(name, q):
+    """Process to count all items in queue
+    just by getting item and increasing counter
+    """
     count = 0
     while not q.empty():
         q.get()
@@ -42,35 +56,54 @@ def count_q(name, q):
         q.task_done()
     print(f"In {name} queue where: {count}")
 
+def get_task_count(queue, process):
+    """Run special process to count items in queues
+    I do need this because on MacOS method `qsize` is not implemented
+    (
+    """
+    process.start()
+    queue.join()
+    process.terminate()
+
 
 def starter(processes_list):
+    """Start processes"""
     for processes in processes_list:
         for i in range(len(processes)):
             processes[i].start()
 
 def terminator(processes_list):
+    """Terminate processes"""
     for processes in processes_list:
         for i in range(len(processes)):
             processes[i].terminate()
 
 def main():
     # Queue for requests
+    # Main queue for tasks
     q = mp.JoinableQueue(maxsize=MAXQSISE)
+    # Queue for done tasks
     done_q = mp.JoinableQueue()
+    # Queue for denied tasks 
+    # task is denied if main queue is full
     den_q = mp.JoinableQueue()
+    # little hack to count denied tasks queue
+    # for some reasons on MacOS it wont let it count itself
+    # if queue is empty
     den_q.put(1)
 
     # Dict to store workers objects
     workers = {}
 
-    # Dict to store eriters objects
+    # Dict to store writers objects
     writers = {}
 
+    # Create writer processes
     for i in range(NUM_WRITERS):
         writers[i] = mp.Process(target=write, args=(f"writer_{i}", q, den_q, ))
 
+    # Create worker processes
     for i in range(NUM_WORKERS):
-        global worker
         workers[i] = mp.Process(target=worker, args=(f"worker_{i}", q, done_q, ))
 
     # Queues for succsess and unseccsessful tasks
@@ -78,24 +111,24 @@ def main():
     count_den = mp.Process(target=count_q, args=("Denied", den_q, ))
 
 
+    # start processes
     starter([writers, workers])
 
     #q.join()
+    # Terminate tasks at the end of timer
+    # monotonic timer count time from begining of a program
+    # in sec
     while True:
         if time.monotonic() > TIMER:
             terminator([writers, workers])
             print("BREAKING")
             break
     
-    count_den.start()
-    den_q.join()
-    count_den.terminate()
 
-    # Count queue with done tasks
-    count_suc.start()
-    done_q.join()
-    count_suc.terminate()
-    terminator([writers, workers])
+    # print succsefully processed and denied tasks
+    print("------------------------")
+    get_task_count(done_q, count_suc)
+    get_task_count(den_q, count_den)
 
 
 if __name__ == "__main__":
